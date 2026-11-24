@@ -8,7 +8,7 @@ There are two ways to use it, and both run entirely on your own computer:
 
 - **In Claude Code**, as a plugin with two skills. Ask in plain words, for example *"make a 15-second reel from the
   photos in ~/Desktop/rome to this song: https://youtu.be/…, with the hook 'POV: you found the spot'"*.
-- **In the browser**, at https://beatcut.tedkane.workers.dev (the website in `web/`). Drop a song and photos or clips, pick the pace, type your captions, then
+- **In the browser**, at https://beatcut.tedkane.xyz (the website in `web/`). Drop a song and photos or clips, pick the pace, type your captions, then
   preview and export an MP4. Nothing is uploaded.
 
 ## Install the Claude Code plugin
@@ -97,8 +97,9 @@ npx wrangler login       # once: opens the browser to sign in to Cloudflare
 npx wrangler deploy      # uploads web/ and prints the address
 ```
 
-Live at **https://beatcut.tedkane.workers.dev**. Run `npx wrangler deploy` again to update it. To use your own
-domain, go to the Cloudflare dashboard → Workers & Pages → beatcut → Settings → Domains & Routes. The model file is
+Live at **https://beatcut.tedkane.xyz** (also https://beatcut.tedkane.workers.dev). Run `npx wrangler deploy` again to update it. The address comes from
+`routes` in `wrangler.toml`: change it to a domain on your own Cloudflare account, or delete that line to use only
+workers.dev. The model file is
 10.5 MB, under the 25 MB limit per file.
 
 ## How the beat detection is checked

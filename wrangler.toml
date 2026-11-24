@@ -2,6 +2,8 @@
 # (Cloudflare's current home for what used to be Pages). Deploy with:  npx wrangler deploy
 name = "beatcut"
 compatibility_date = "2026-11-01"
+workers_dev = true
+routes = [{ pattern = "beatcut.tedkane.xyz", custom_domain = true }]
 
 [assets]
 directory = "./web"
