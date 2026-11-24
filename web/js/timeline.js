@@ -116,6 +116,26 @@ export function planEdit({ g, start, nBeats, every, media, fps }) {
   return { t0, g0, nBeats, shots, frames, duration: frames / fps, beats, bars, fps, period: g.period, one: g.one };
 }
 
+/** Hand-tuned cuts: move every cut by `shift` seconds and cut i (the start of shot i) by `nudge[i]` more. Cuts stay in
+ *  order with at least 2 frames per shot; the first shot still starts at 0 and the edit keeps its length. */
+export function retime(plan, shift = 0, nudge = {}) {
+  const { fps, shots } = plan, total = plan.frames;
+  const cuts = shots.map((s, i) => (i ? Math.round((s.start + shift + (nudge[i] ?? 0)) * fps) : 0));
+  for (let i = 1; i < cuts.length; i++) cuts[i] = Math.max(cuts[i], cuts[i - 1] + 2);
+  for (let i = cuts.length - 1; i >= 1; i--) cuts[i] = Math.min(cuts[i], (i + 1 < cuts.length ? cuts[i + 1] : total) - 2);
+  const resume = new Map();
+  const out = shots.map((s, i) => {
+    const f0 = Math.max(0, cuts[i]), f1 = i + 1 < cuts.length ? cuts[i + 1] : total;
+    const shot = { ...s, f0, frames: f1 - f0, start: f0 / fps, end: f1 / fps, planned: s.start };
+    if (s.media.kind === 'video') {
+      let tin = resume.get(s.media) ?? 0; if (tin >= s.media.duration - 0.2) tin = 0;
+      shot.in = tin; resume.set(s.media, tin + shot.frames / fps);
+    }
+    return shot;
+  });
+  return { ...plan, shots: out, shift };
+}
+
 /** Captions: one per `barsEach` bars from the first bar, words of a pop caption on the beats inside it. */
 export function placeCaptions(lines, plan, barsEach) {
   const out = []; let b = 0;

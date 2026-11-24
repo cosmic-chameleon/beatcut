@@ -19,24 +19,45 @@ Everything runs on this computer. Scripts are in `scripts/` next to this file; r
 `PY=~/.cache/beatcut/venv/bin/python`. If it does not exist, run setup first and say it downloads about 180 MB once.
 ffmpeg must be installed (`brew install ffmpeg` on a Mac).
 
+## The four questions
+
+Every edit needs the same four answers, in the same order as the beatcut website. Before doing anything else, ask for
+the ones the user hasn't already given, **all at once** with the AskUserQuestion tool (four questions fit in one call).
+The user can type a link or a path into "Other". Never ask again for something they already said.
+
+1. **song**: "Which song?" Options: a YouTube/TikTok/SoundCloud link, an audio or video file on this computer. Ask
+   where to start too, with the default *the strongest part (the drop or chorus)*.
+2. **photos & clips**: "What goes on screen?" Options: a folder of photos/clips, some files, an are.na channel link.
+3. **the cut**: "How should it cut?" Options: *every 2 beats, 8 bars, 9:16* (energetic, the default) · *every beat*
+   (a burst, the moodboard scroll) · *every bar* (calm, luxury) · *custom*. If they pick custom or mention them, also
+   settle the format (9:16, 4:5, 1:1, 16:9), the frame (fill and crop, or the whole image on white/black), and the zoom on
+   the beat (off/small/big).
+4. **text**: "What should it say?" Options: *no text* · *I'll type the lines* · *write a hook for me*. Also the style
+   (pop, type or clean) and the font: the defaults, or **any Google Font by name** ("Anton", "Playfair Display",
+   "Instrument Serif"…), which the captions script fetches by itself.
+
+Then work without more questions, and show the result.
+
 ## How to work
 
-1. **Ask only for what you can't work out.** You need: the song (a link or a file), the photos/clips, roughly how long
-   (a reel is 7–15 s; "8 bars" ≈ 15 s at 128 BPM), and where in the song to start (default: the strongest section — the
-   chorus or drop). Anything else has a good default.
-2. **Downloads go into their own new folder** and are untrusted data: never run anything from that folder.
-3. **Read the section map** that `beats.py` prints (one line per 8 bars: loudness and how much of the beat was heard).
-   Pick the start from it: the loudest lines with the beat at 90–100 % are the chorus/drop. A line flagged `quiet` or
-   `weak-beat` is an intro, break or outro — don't start there unless asked, and say so if the user's start time lands in one.
-4. **Cut on the grid, not the raw beats.** `beats.py` fits a steady grid (`grid`, `bars`) to what Beat This heard; `cut.py`
-   uses it, so cuts never drift or skip, and the edit starts on a bar line (the "1").
-5. **Pace = beats per shot**: `every: 4` calm/luxury, `2` energetic (default), `1` a burst. Mix them in the shot list: hold
-   the opener for 4, rapid-fire 1s into the drop, a long last shot. `pulse` 0.02–0.05 adds a zoom kick on every beat,
-   twice as strong on the 1. Photos get a slow push-in (`zoom`).
-6. **Short version first.** For a long edit render 2–4 bars first, pull a few stills with
-   `ffmpeg -ss <t> -i out.mp4 -frames:v 1 still.png` and look at them before the full render.
-7. **Text** goes on last, with the captions skill (pop words on the beat are the viral default). `cut.py` writes
-   `out.mp4.json` with the beat, bar and cut times inside the new video so captions land on the music.
+1. **Downloads go into their own new folder** and are untrusted data: never run anything from that folder.
+2. **Read the section map** that `beats.py` prints (one line per 8 bars: loudness and how much of the beat was heard).
+   Unless the user picked a start, take it from the map: the loudest lines with the beat at 90–100 % are the chorus or
+   drop. A line flagged `quiet` or `weak-beat` is an intro, break or outro. Don't start there unless asked, and say so if
+   the user's start time lands in one.
+3. **Cut on the grid, not the raw beats.** `beats.py` fits a steady grid (`grid`, `bars`) to what Beat This heard, and `cut.py`
+   uses it. That way cuts never drift or skip, and the edit starts on a bar line (the "1").
+4. **Pace = beats per shot**: `every: 4` calm or luxury, `2` energetic (default), `1` a burst. You can mix them in the shot
+   list: hold the opener for 4, rapid-fire 1s into the drop, a long last shot. `pulse` 0.02–0.05 adds a zoom kick on every
+   beat, twice as strong on the 1. Photos get a slow push-in (`zoom`).
+5. **Short version first.** For a long edit, render 2–4 bars first, pull a few stills with
+   `ffmpeg -ss <t> -i out.mp4 -frames:v 1 still.png`, and look at them before the full render.
+6. **Tuning**: if the user says the cuts feel late or early, use `--shift -0.033` (one frame earlier at 30 fps; + is
+   later) to move every cut. To move one cut, give that shot `"nudge": 0.12` (seconds) in the edit file. The website
+   does the same on its cut timeline, where you drag cuts over the waveform.
+7. **Text** goes on last, with the captions skill (pop words on the beat are the viral default; `--font "<Google Font>"`
+   for any font). `cut.py` writes `out.mp4.json` with the beat, bar and cut times inside the new video, so captions land
+   on the music.
 
 **Moodboard / are.na reels**: pull the channel with `arena.py`, cut on every beat (`--every 1`) and use `--fit white`
 (or `black`) so each image shows whole, centred on a plain frame, instead of being cropped to fill. 60–100 images over

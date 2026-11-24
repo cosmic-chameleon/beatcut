@@ -95,6 +95,17 @@
           </label>
         </div>
         <p class="small muted" id="editInfo"></p>
+        <div id="tlBox" hidden>
+          <canvas id="tl" aria-label="the cuts on the music: drag a cut to move it"></canvas>
+          <div class="row small tlrow">
+            <span>all cuts <button id="shiftL" title="every cut a frame earlier">earlier</button>
+              <span class="mono" id="shiftV">0 ms</span>
+              <button id="shiftR" title="every cut a frame later">later</button></span>
+            <span class="mono" id="cutInfo"></span>
+            <button class="link" id="tlReset" hidden>reset</button>
+          </div>
+          <p class="small muted hint">drag a cut to move it (it snaps to the beat; hold alt for free). click one, then ← → to move it a frame. double-click puts it back. click anywhere else to look there.</p>
+        </div>
       </div>
 
       <div class="card">
@@ -123,7 +134,17 @@
             </select>
           </label>
           <label>accent <input type="color" id="accent" value="#c8ff3d" /></label>
+          <label>font <a href="https://fonts.google.com" target="_blank" rel="noopener" class="small">(any google font)</a>
+            <input id="font" list="fontList" placeholder="default" autocomplete="off" spellcheck="false" />
+          </label>
+          <p class="small muted" id="fontMsg"></p>
         </div>
+        <datalist id="fontList">
+          <option value="Anton"></option><option value="Bebas Neue"></option><option value="Archivo Black"></option>
+          <option value="Syne"></option><option value="Space Grotesk"></option><option value="Inter"></option>
+          <option value="Instrument Serif"></option><option value="Playfair Display"></option><option value="DM Serif Display"></option>
+          <option value="Fraunces"></option><option value="Permanent Marker"></option><option value="Caveat"></option>
+        </datalist>
       </div>
     </section>
 

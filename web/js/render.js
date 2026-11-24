@@ -15,8 +15,9 @@ export function shotAt(plan, t) {
 function zoomAt(plan, shot, t, opts) {
   let z = 1;
   if (opts.pulse) {
-    const since = t - plan.beats.reduce((last, b) => (b <= t + 1e-6 ? b : last), 0);
-    const beatIdx = plan.g0 + Math.round((t - since) / plan.period);
+    const tt = t - (plan.shift ?? 0);   // the zoom kick moves with the cuts
+    const since = tt - plan.beats.reduce((last, b) => (b <= tt + 1e-6 ? b : last), 0);
+    const beatIdx = plan.g0 + Math.round((tt - since) / plan.period);
     const isOne = ((beatIdx - plan.one) % 4 + 4) % 4 === 0;
     z += opts.pulse * (isOne ? 2 : 1) * Math.exp(-since / 0.09);
   }
@@ -59,7 +60,7 @@ function drawCaption(ctx, W, H, t, c, plan, opts) {
   ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
   if (style === 'pop') {
     const px = 0.095 * W * size;
-    ctx.font = `850 ${px}px Montserrat`;
+    ctx.font = `850 ${px}px ${opts.font ? `"${opts.font}"` : 'Montserrat'}`;
     const words = c.text.toUpperCase().split(/\s+/).filter(Boolean);
     if (!c._t) c._t = wordTimes(c, plan.beats);
     const lines = wrap(ctx, words, 0.86 * W), lh = px * 1.12, space = ctx.measureText(' ').width;
@@ -86,7 +87,7 @@ function drawCaption(ctx, W, H, t, c, plan, opts) {
     });
   } else if (style === 'type') {
     const px = 0.07 * W * size, cps = 16;
-    ctx.font = `450 ${px}px "EB Garamond"`;
+    ctx.font = `450 ${px}px "${opts.font || 'EB Garamond'}"`;
     const lines = c.text.includes('\n') ? c.text.split('\n') : wrap(ctx, c.text.split(/\s+/), 0.8 * W).map((l) => l.join(' '));
     const a = Math.min(1, (t - c.start) / 0.35, (c.end - t) / 0.25);
     // one broad warm vignette centred on the text, reaching the frame edges
@@ -107,7 +108,7 @@ function drawCaption(ctx, W, H, t, c, plan, opts) {
     if (last && (typing || Math.floor(t * 2.2) % 2 === 0) && t - c.start < n / cps + 1.4) ctx.fillRect(last[0] + 4, last[1] - px * 0.72, Math.max(2, px / 16), px * 0.9);
   } else {
     const px = 0.064 * W * size;
-    ctx.font = `700 ${px}px Montserrat`;
+    ctx.font = `700 ${px}px ${opts.font ? `"${opts.font}"` : 'Montserrat'}`;
     const lines = c.text.includes('\n') ? c.text.split('\n') : wrap(ctx, c.text.split(/\s+/), 0.84 * W).map((l) => l.join(' '));
     const a = Math.max(0, Math.min(1, (t - c.start) / 0.25, (c.end - t) / 0.2));
     const dy = t - c.start < 0.25 ? (1 - a) * 0.012 * H : 0, lh = px * 1.25;

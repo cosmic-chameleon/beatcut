@@ -1,6 +1,6 @@
 {
   "name": "beatcut",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Make viral-style videos on your own computer: download a song with yt-dlp, find every beat with Beat This!, cut photos and clips on the beat, and add text that lands on the music.",
   "author": { "name": "beatcut contributors" },
   "license": "MIT",

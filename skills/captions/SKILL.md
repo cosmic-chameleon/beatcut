@@ -19,6 +19,15 @@ once; it also fetches the fonts, Montserrat and EB Garamond, both open-licence).
 | `type` | serif typed letter by letter, blinking caret, soft dark vignette behind | luxury, travel, brand films, quotes |
 | `clean` | white sans lines fade up with a soft shadow | subtitles, info, end cards |
 
+## Fonts
+
+Each style has its default font (Montserrat for pop and clean, EB Garamond for type). `--font "Anton"` or `"font"` in the
+cues file (top level or per cue) swaps in **any family from fonts.google.com**, by its exact name. The script downloads
+the nearest weight the family has once, into `~/.cache/beatcut/fonts/google`. All Google Fonts are free to use in
+videos. Good picks: *Anton*, *Bebas Neue* or *Archivo Black* for pop; *Playfair Display*, *Instrument Serif* or
+*DM Serif Display* for type; *Inter* or *Space Grotesk* for clean. If a name isn't found, the script says so: check the
+spelling on fonts.google.com.
+
 ## Writing good captions
 
 - **Hook in the first second.** The first cue starts at 0 and says why to keep watching ("POV: …", "the spot no one
@@ -43,4 +52,4 @@ The cues file (all fields but `cues` optional):
   ]
 }
 ```
-Per cue you can also set `size`, `color`, `accent`, `italic` (type) and `cps` (typing speed, letters a second).
+Per cue you can also set `size`, `color`, `accent`, `font`, `italic` (type) and `cps` (typing speed, letters a second).

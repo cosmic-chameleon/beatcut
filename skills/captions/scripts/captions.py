@@ -15,6 +15,7 @@ cues.json:
   "accent": "#C8FF3D",               # colour of the newest word (pop)
   "y": 0.62,                          # vertical centre of the text, 0 top .. 1 bottom (keep clear of app buttons at the bottom)
   "size": 1.0,                        # text size multiplier
+  "font": "Anton",                    # optional: any family from fonts.google.com, fetched once (also per cue)
   "cues": [
     {"text": "POV: you found the spot", "start": 0.0, "end": 2.6},
     {"text": "and it's only Tuesday", "bars": 2},          # no times: placed on the next bars (needs the video's .json from cut.py)
@@ -25,14 +26,46 @@ Cues without "start" follow one another bar by bar ("bars": how many, default 1)
 <video>.json, which cut.py writes; for any other video pass --beats beats.json (from beats.py on the same video).
 Without beat times, pop words come at an even pace.
 """
-import argparse, json, math, os, pathlib, subprocess, sys
+import argparse, json, math, os, pathlib, re, subprocess, sys
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 FONTS = pathlib.Path(os.environ.get('BEATCUT_FONTS', pathlib.Path.home() / '.cache/beatcut/fonts'))
 
 
-def font(family, weight, px, italic=False):
+GF_CACHE = FONTS / 'google'
+
+
+def google_font(name, weight, italic=False):
+    """Any family on fonts.google.com by name ("Anton", "Playfair Display"). Downloads the nearest weight it has once,
+    into ~/.cache/beatcut/fonts/google, and returns the file. All Google Fonts are open-licence."""
+    import ssl, urllib.request, urllib.error
+    try:   # python.org builds on macOS have no CA certificates of their own
+        import certifi; ctx = ssl.create_default_context(cafile=certifi.where())
+    except ImportError:
+        ctx = None
+    near = sorted(range(100, 1000, 100), key=lambda w: (abs(w - weight), -w))
+    for ital in ([1, 0] if italic else [0]):
+        for w in near:
+            f = GF_CACHE / f"{name.replace(' ', '')}-{w}{'i' if ital else ''}.ttf"
+            if f.exists():
+                return f
+            fam = name.strip().replace(' ', '+') + (f':ital,wght@1,{w}' if ital else f':wght@{w}')
+            try:   # with no browser user agent the css2 api answers with plain .ttf links
+                with urllib.request.urlopen(f'https://fonts.googleapis.com/css2?family={fam}', timeout=30, context=ctx) as r:
+                    css = r.read().decode()
+            except urllib.error.HTTPError:
+                continue   # that weight (or the family) does not exist
+            url = re.search(r'url\((https://[^)]+)\)', css).group(1)
+            with urllib.request.urlopen(url, timeout=60, context=ctx) as r:
+                GF_CACHE.mkdir(parents=True, exist_ok=True); f.write_bytes(r.read())
+            return f
+    sys.exit(f'google font not found: {name!r} (use the exact name from fonts.google.com)')
+
+
+def font(family, weight, px, italic=False, google=None):
+    if google:
+        return ImageFont.truetype(str(google_font(google, weight, italic)), int(px))
     name = {'sans': 'Montserrat', 'serif': 'EBGaramond'}[family] + ('-Italic' if italic else '') + '[wght].ttf'
     p = FONTS / name
     if not p.exists():
@@ -103,7 +136,7 @@ class Pop:
     def __init__(self, c, W, H, cfg, beats):
         self.c = c; self.W, self.H = W, H
         px = 0.095 * W * cfg.get('size', 1) * c.get('size', 1)
-        self.f = font('sans', 850, px)
+        self.f = font('sans', 850, px, google=c.get('font', cfg.get('font')))
         self.stroke = max(2, int(px * 0.13))
         self.white = (255, 255, 255); self.accent = hexrgb(c.get('accent', cfg.get('accent', '#C8FF3D')))
         words, self.t = word_times(c, beats)
@@ -167,7 +200,7 @@ class Type:
     def __init__(self, c, W, H, cfg, beats):
         self.c = c; self.W, self.H = W, H
         px = 0.07 * W * cfg.get('size', 1) * c.get('size', 1)
-        self.f = font('serif', 450, px, italic=c.get('italic', False))
+        self.f = font('serif', 450, px, italic=c.get('italic', False), google=c.get('font', cfg.get('font')))
         self.color = hexrgb(c.get('color', cfg.get('color', '#F8F4EC')))
         self.cps = c.get('cps', 16)
         lines = c['text'].split('\n') if '\n' in c['text'] else self.wrap(c['text'], 0.8 * W)
@@ -224,7 +257,7 @@ class Clean(Type):
     def __init__(self, c, W, H, cfg, beats):
         self.c = c; self.W, self.H = W, H
         px = 0.064 * W * cfg.get('size', 1) * c.get('size', 1)
-        self.f = font('sans', 700, px)
+        self.f = font('sans', 700, px, google=c.get('font', cfg.get('font')))
         self.color = hexrgb(c.get('color', cfg.get('color', '#FFFFFF')))
         lines = c['text'].split('\n') if '\n' in c['text'] else self.wrap(c['text'], 0.84 * W)
         asc, desc = self.f.getmetrics(); lh = (asc + desc) * 1.1
@@ -262,6 +295,7 @@ def main():
     ap.add_argument('--style', choices=list(STYLES)); ap.add_argument('--bars', type=int, default=1, help='bars per --text caption')
     ap.add_argument('--beats', help='beats.json for this video, when it was not made by cut.py')
     ap.add_argument('--accent'); ap.add_argument('--y', type=float)
+    ap.add_argument('--font', help='any Google Fonts family by name, e.g. "Anton" or "Playfair Display"')
     a = ap.parse_args()
     if a.text:
         cfg = {'cues': [{'text': t, 'bars': a.bars} for t in a.text]}; out = a.args[-1]
@@ -271,6 +305,7 @@ def main():
         cfg = json.loads(pathlib.Path(a.args[0]).read_text()); out = a.args[1]
     if a.style: cfg['style'] = a.style
     if a.accent: cfg['accent'] = a.accent
+    if a.font: cfg['font'] = a.font
     if a.y is not None: cfg['y'] = a.y
     W, H, fps, dur = probe(a.video)
     meta = {}

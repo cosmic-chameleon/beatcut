@@ -1,11 +1,11 @@
 // beatcut web: song -> Beat This! beats -> photos/clips cut on the beat -> text -> preview -> MP4. All in the browser.
-import { fitGrid, sections, planEdit, placeCaptions, bestPart } from './timeline.js';
+import { fitGrid, sections, planEdit, retime, placeCaptions, bestPart } from './timeline.js';
 import { drawFrame, shotAt } from './render.js';
 import { exportMp4, canExport } from './export.js';
 import { demoSong, demoImages } from './demo.js';
 
 const $ = (id) => document.getElementById(id);
-const S = { song: null, songName: '', mono: null, beats: [], downbeats: [], g: null, sec: null, start: 0, media: [], plan: null, captions: [], playing: null };
+const S = { song: null, songName: '', mono: null, beats: [], downbeats: [], g: null, sec: null, start: 0, media: [], plan: null, captions: [], playing: null, font: null, shift: 0, nudge: {}, pick: 0 };
 const actx = new (window.AudioContext || window.webkitAudioContext)();
 const worker = new Worker(new URL('./beat-worker.js', import.meta.url), { type: 'module' });
 window.__beatcut = S;   // for poking at from the console
@@ -42,7 +42,7 @@ function wavRate(ab) {
 const partLength = () => Math.max(40, 4 * +$('bars').value * 0.6 + 16);
 
 function useSong(buf, name) {
-  S.song = buf; S.songName = name; S.g = null; S.beats = []; S.downbeats = []; S.sec = null; S.plan = null; S.whole = false;
+  S.song = buf; S.songName = name; S.g = null; S.beats = []; S.downbeats = []; S.sec = null; S.plan = null; S.whole = false; S.nudge = {}; S.pick = 0; S.shift = 0;
   const n = buf.length; S.mono = new Float32Array(n);
   for (let c = 0; c < buf.numberOfChannels; c++) { const d = buf.getChannelData(c); for (let i = 0; i < n; i++) S.mono[i] += d[i] / buf.numberOfChannels; }
   $('waveWrap').hidden = false;
@@ -190,7 +190,7 @@ $('wave').addEventListener('pointerup', (e) => {
     analyse({ a: t - 2, b: t + partLength(), drop: t, why: 'your pick' });
   }
 });
-addEventListener('resize', () => { drawWave(); sizeView(); if (S.plan && !S.playing) drawAt(($('scrub').value / 1000) * S.plan.duration); });   // resizing a canvas clears it
+addEventListener('resize', () => { drawWave(); drawTimeline(); sizeView(); if (S.plan && !S.playing) drawAt(($('scrub').value / 1000) * S.plan.duration); });   // resizing a canvas clears it
 
 $('beatsJson').addEventListener('click', () => {
   if (!S.g) return;
@@ -292,10 +292,38 @@ function renderThumbs() {
 }
 
 // ── 3 & 4. the edit and the text ───────────────────────────────────────────
-const opts = () => ({ fit: $('fit').value, pulse: +$('pulse').value, zoom: 0.06, style: $('style').value, accent: $('accent').value, y: +$('ypos').value });
+const opts = () => ({ fit: $('fit').value, pulse: +$('pulse').value, zoom: 0.06, style: $('style').value, accent: $('accent').value, y: +$('ypos').value, font: S.font });
 const size = () => $('format').value.split('x').map(Number);
 for (const id of ['every', 'bars', 'format', 'fit', 'pulse', 'style', 'capBars', 'ypos', 'accent']) $(id).addEventListener('input', rebuild);
 $('text').addEventListener('input', rebuild);
+
+// any google font by name: fetch the weights it has (a family 404s on a weight it lacks), add them to the page
+const fontCss = new Map();
+async function googleFont(name) {
+  if (!fontCss.has(name)) {
+    const fam = encodeURIComponent(name).replace(/%20/g, '+');
+    const css = (await Promise.all([300, 400, 500, 600, 700, 800, 900].map((w) =>
+      fetch(`https://fonts.googleapis.com/css2?family=${fam}:wght@${w}&display=swap`).then((r) => (r.ok ? r.text() : '')).catch(() => ''))))
+      .join('\n');
+    if (!css) return false;
+    const el = document.createElement('style'); el.textContent = css; document.head.appendChild(el);
+    fontCss.set(name, true);
+  }
+  await Promise.all(['450', '700', '850'].map((w) => document.fonts.load(`${w} 40px "${name}"`)));
+  return true;
+}
+async function loadFonts() {
+  await document.fonts.load('850 40px Montserrat'); await document.fonts.load('450 40px "EB Garamond"');
+  if (S.font) await googleFont(S.font);
+}
+$('font').addEventListener('change', async () => {
+  const name = $('font').value.trim().replace(/\s+/g, ' ');
+  if (!name) { S.font = null; $('fontMsg').textContent = ''; rebuild(); return; }
+  $('fontMsg').textContent = `loading ${name}…`;
+  if (await googleFont(name)) { S.font = name; $('fontMsg').textContent = ''; }
+  else { S.font = null; $('fontMsg').textContent = `no google font called “${name}”. use the name as on fonts.google.com.`; }
+  rebuild();
+});
 
 /** With the whole song analysed, cut on a grid fitted only to the beats around the edit: songs (and mixes) drift in tempo. */
 function localGrid() {
@@ -310,7 +338,10 @@ function rebuild() {
   localGrid();
   if (S.g && S.media.length) {
     const want = 4 * +$('bars').value;
-    S.plan = planEdit({ g: S.g, start: S.start, nBeats: want, every: +$('every').value, media: S.media, fps: 30 });
+    const base = planEdit({ g: S.g, start: S.start, nBeats: want, every: +$('every').value, media: S.media, fps: 30 });
+    const shape = `${base.t0}|${base.shots.map((sh) => sh.f0).join(',')}`;   // a different edit: hand-moved cuts no longer apply
+    if (shape !== S.shape) { S.shape = shape; S.nudge = {}; S.pick = 0; }
+    S.plan = retime(base, S.shift, S.nudge);
     const end = S.plan.t0 + want * S.g.period + 1;
     const longer = Math.min(S.song.duration, Math.max(end, S.part.a + partLength()));
     if (S.plan.nBeats < want && !S.analysing && !S.bg && longer > S.part.b + 0.5) {   // the part is too short for this edit: analyse more
@@ -326,8 +357,106 @@ function rebuild() {
   }
   $('play').disabled = $('export').disabled = !S.plan;
   $('empty').hidden = !!S.plan;
-  sizeView(); drawWave(); drawAt(0);
+  $('tlBox').hidden = !S.plan;
+  sizeView(); drawWave(); drawTimeline(); drawAt(0);
 }
+
+// ── the cut timeline: the edit up close, every cut a line you can move ────────────
+const TL = { H: 118, top: 30, wave: 60 };   // thumbs strip above, waveform below
+let tlDrag = null;
+function tlView() {   // song time <-> canvas x, with a little air either side of the edit
+  const W = $('tl').clientWidth, pad = 0.25, a = S.plan.t0 - pad, b = S.plan.t0 + S.plan.duration + pad;
+  return { W, x: (t) => ((t - a) / (b - a)) * W, t: (px) => a + (px / W) * (b - a), a, b };
+}
+function drawTimeline(playT) {
+  const cv = $('tl'); if (!S.plan || $('tlBox').hidden) return;
+  const dpr = devicePixelRatio || 1, { W, x, a, b } = tlView(), H = TL.H, t0 = S.plan.t0;
+  cv.width = W * dpr; cv.height = H * dpr;
+  const c = cv.getContext('2d'); c.scale(dpr, dpr); c.clearRect(0, 0, W, H);
+  // the music: peaks light, loudness dark, the same drawing as the big waveform
+  const sr = S.song.sampleRate, mid = TL.top + 8 + TL.wave / 2, amp = TL.wave / 2;
+  for (let px = 0; px < W; px++) {
+    const i0 = Math.max(0, Math.floor((a + (px / W) * (b - a)) * sr)), i1 = Math.min(S.mono.length, Math.floor((a + ((px + 1) / W) * (b - a)) * sr));
+    let lo = 0, hi = 0, sq = 0, n = 0;
+    for (let i = i0; i < i1; i += 2) { const v = S.mono[i]; if (v < lo) lo = v; if (v > hi) hi = v; sq += v * v; n++; }
+    const rms = Math.sqrt(sq / Math.max(1, n));
+    c.fillStyle = '#c4c4c4'; c.fillRect(px, mid - hi * amp, 1, Math.max(1, (hi - lo) * amp));
+    c.fillStyle = '#111'; c.fillRect(px, mid - rms * amp * 1.4, 1, Math.max(1, rms * amp * 2.8));
+  }
+  // beats (short) and bars (tall), from the music, never moved
+  for (const bt of S.plan.beats) {
+    const isBar = S.plan.bars.some((br) => Math.abs(br - bt) < 1e-6), bx = Math.round(x(t0 + bt));
+    c.fillStyle = isBar ? 'rgba(0,0,238,0.55)' : 'rgba(0,0,0,0.3)'; c.fillRect(bx, H - (isBar ? 12 : 6), 1, isBar ? 12 : 6);
+  }
+  // the shots: a strip of thumbnails, then one line per cut
+  S.plan.shots.forEach((sh, i) => {
+    const sx = x(t0 + sh.start), ex = x(t0 + sh.end), w = ex - sx, m = sh.media, src = m.kind === 'image' ? m.bitmap : m.el;
+    c.fillStyle = i % 2 ? '#ececec' : '#f6f6f6'; c.fillRect(sx, 0, w, TL.top - 4);
+    const sw = m.kind === 'image' ? src?.width : src?.videoWidth, shh = m.kind === 'image' ? src?.height : src?.videoHeight;
+    if (sw && shh && w > 6) {   // a centre crop of the picture, as wide as the shot
+      const th = TL.top - 6, tw = Math.min(w - 2, th * 1.6), r = Math.max(tw / sw, th / shh), cw = tw / r, ch = th / r;
+      try { c.drawImage(src, (sw - cw) / 2, (shh - ch) / 2, cw, ch, sx + 1, 1, tw, th); } catch { /* a clip not ready yet */ }
+    }
+    if (!i) return;
+    const moved = Math.abs(sh.start - sh.planned - S.shift) > 0.5 / S.plan.fps, picked = i === S.pick;
+    c.fillStyle = picked ? '#c00' : moved ? '#0000ee' : '#111';
+    c.fillRect(Math.round(sx), 0, picked ? 2 : 1.5, H);
+    c.beginPath(); c.moveTo(sx - 4, 0); c.lineTo(sx + 5, 0); c.lineTo(sx + 0.5, 6); c.fill();   // a handle
+  });
+  if (playT != null) { c.fillStyle = '#c00'; c.globalAlpha = 0.6; c.fillRect(x(t0 + playT), 0, 1, H); c.globalAlpha = 1; }
+  // what is moved
+  const ms = Math.round(S.shift * 1000);
+  $('shiftV').textContent = `${ms > 0 ? '+' : ''}${ms} ms`;
+  const p = S.pick && S.plan.shots[S.pick];
+  const own = p ? Math.round((p.start - p.planned - S.shift) * 1000) : 0;
+  $('cutInfo').textContent = p ? `cut ${S.pick}: ${own > 0 ? '+' : ''}${own} ms on its own` : '';
+  $('tlReset').hidden = !S.shift && !Object.keys(S.nudge).length;
+}
+function cutNear(px) {
+  const { x } = tlView(); let best = 0, bd = 7;
+  S.plan.shots.forEach((sh, i) => { const d = Math.abs(x(S.plan.t0 + sh.start) - px); if (i && d < bd) { bd = d; best = i; } });
+  return best;
+}
+function setCut(i, editT, free) {   // move cut i to edit time editT, snapped to the nearest quarter beat unless free
+  const sh = S.plan.shots[i];
+  if (!free) {
+    const q = S.plan.period / 4, b0 = S.plan.beats[0];
+    editT = b0 + Math.round((editT - b0) / q) * q;
+  }
+  const base = sh.planned + S.shift, nd = editT - base;
+  if (Math.abs(nd) < 0.5 / S.plan.fps) delete S.nudge[i]; else S.nudge[i] = nd;
+  S.plan = retime({ ...S.plan, shots: S.plan.shots.map((s) => ({ ...s, start: s.planned, end: s.planned })) }, S.shift, S.nudge);
+}
+const tlX = (e) => e.clientX - $('tl').getBoundingClientRect().left;
+$('tl').tabIndex = 0;
+$('tl').addEventListener('pointerdown', (e) => {
+  if (!S.plan) return;
+  const i = cutNear(tlX(e));
+  if (i) { stop(); S.pick = i; tlDrag = { i }; $('tl').setPointerCapture(e.pointerId); $('tl').focus(); }
+  else { S.pick = 0; const t = Math.min(S.plan.duration - 1e-3, Math.max(0, tlView().t(tlX(e)) - S.plan.t0)); $('scrub').value = Math.round((t / S.plan.duration) * 1000); $('scrub').dispatchEvent(new Event('input')); }
+  drawTimeline();
+});
+$('tl').addEventListener('pointermove', (e) => {
+  if (!S.plan) return;
+  if (!tlDrag) { $('tl').style.cursor = cutNear(tlX(e)) ? 'ew-resize' : 'default'; return; }
+  setCut(tlDrag.i, tlView().t(tlX(e)) - S.plan.t0, e.altKey);
+  drawTimeline(); drawAt(S.plan.shots[tlDrag.i].start);
+});
+$('tl').addEventListener('pointerup', () => { if (tlDrag) { tlDrag = null; rebuild(); } });
+$('tl').addEventListener('dblclick', (e) => {
+  const i = cutNear(tlX(e)); if (!i) return;
+  delete S.nudge[i]; rebuild();
+});
+$('tl').addEventListener('keydown', (e) => {
+  if (!S.plan || !S.pick || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
+  e.preventDefault();
+  const sh = S.plan.shots[S.pick]; setCut(S.pick, sh.start + (e.key === 'ArrowLeft' ? -1 : 1) / S.plan.fps, true);
+  rebuild(); drawAt(S.plan.shots[S.pick].start);
+});
+const shiftAll = (frames) => { S.shift = Math.round((S.shift + frames / 30) * 30) / 30; rebuild(); };
+$('shiftL').addEventListener('click', () => shiftAll(-1));
+$('shiftR').addEventListener('click', () => shiftAll(1));
+$('tlReset').addEventListener('click', () => { S.shift = 0; S.nudge = {}; S.pick = 0; rebuild(); });
 
 // ── preview ────────────────────────────────────────────────────────────────
 function sizeView() {
@@ -356,7 +485,7 @@ $('play').addEventListener('click', () => (S.playing ? stop() : play()));
 async function play() {
   if (!S.plan) return;
   await actx.resume();
-  await document.fonts.load('850 40px Montserrat'); await document.fonts.load('450 40px "EB Garamond"');
+  await loadFonts();
   const from = ($('scrub').value / 1000) * S.plan.duration;
   const src = actx.createBufferSource(); src.buffer = S.song; src.connect(actx.destination);
   src.start(actx.currentTime + 0.05, S.plan.t0 + from, S.plan.duration - from);
@@ -371,7 +500,7 @@ async function play() {
       if (shot.media.kind === 'video') { shot.media.el.currentTime = shot.in + (t - shot.start); shot.media.el.play().catch(() => {}); }
       S.playing.shot = shot;
     }
-    drawAt(Math.min(t, S.plan.duration - 1e-3)); drawWave();
+    drawAt(Math.min(t, S.plan.duration - 1e-3)); drawWave(); drawTimeline(t);
     requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
@@ -381,7 +510,7 @@ function stop() {
   const p = S.playing; S.playing = null;
   try { p.src.stop(); } catch { /* already stopped */ }
   if (p.shot?.media.kind === 'video') p.shot.media.el.pause();
-  $('play').textContent = 'play'; drawWave();
+  $('play').textContent = 'play'; drawWave(); drawTimeline();
 }
 
 // ── export ─────────────────────────────────────────────────────────────────
@@ -391,7 +520,7 @@ $('export').addEventListener('click', async () => {
   stop(); $('export').disabled = true; $('result').hidden = true;
   const [W, H] = size(), t0 = performance.now();
   try {
-    await document.fonts.load('850 40px Montserrat'); await document.fonts.load('450 40px "EB Garamond"');
+    await loadFonts();
     const blob = await exportMp4({ plan: S.plan, captions: S.captions, opts: opts(), W, H, song: S.song,
       onProgress: (p) => showStatus('export', `rendering… ${Math.round(p * 100)}%`, p) });
     const url = URL.createObjectURL(blob);

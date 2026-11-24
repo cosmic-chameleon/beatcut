@@ -41,6 +41,12 @@ input[type=color] { width: 54px; height: 26px; padding: 0 2px; vertical-align: m
 /* the waveform: the one drawn thing on the page */
 #wave { display: block; width: 100%; margin-top: 14px; cursor: crosshair; touch-action: none; }
 .readout { margin: 8px 0 0; }
+
+/* the cut timeline: the edit up close, one line per cut */
+#tl { display: block; width: 100%; margin-top: 12px; cursor: default; touch-action: none; outline: none; }
+#tl:focus-visible { outline: 1px dotted var(--link); }
+.tlrow { margin-top: 6px; }
+#cutInfo:empty { display: none; }
 #bpm { font-weight: bold; }
 .hint { margin: 2px 0 0; }
 

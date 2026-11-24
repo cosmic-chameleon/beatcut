@@ -13,10 +13,11 @@ The edit file (every field but "song", "beats" and "shots" is optional):
   "zoom": 0.06,           # slow push-in on photos over their shot (0 = still)
   "fit": "cover",         # cover: fill the frame, cropping; white / black: the whole image inside a margin on that colour
   "fade": 0.4,            # music fade-out at the end, seconds
+  "shift": -0.033,        # move every cut this many seconds (+ later, - earlier) if the cuts feel late or early
   "shots": [              # played in order, looped if the edit is longer
     {"src": "clips/a.mp4", "in": 3.2, "beats": 4},   # "in": where in the clip to start (default: where it last stopped)
     {"src": "photos/b.jpg"},
-    {"src": "clips/c.mov", "in": 0, "beats": 1, "speed": 0.5}
+    {"src": "clips/c.mov", "in": 0, "beats": 1, "speed": 0.5, "nudge": 0.12}   # "nudge": move this shot's own cut
   ]
 }
 Clips play at real speed (or "speed"); a clip too short for its slot holds its last frame. Each shot starts on an exact frame
@@ -100,6 +101,16 @@ def build(edit, out):
         f0, f1 = round(a_t * fps), round(b_t * fps)
         plan.append({**s, 'f0': f0, 'frames': f1 - f0, 'beat0': g0 + k}); k += nb
     total = plan[-1]['f0'] + plan[-1]['frames']
+    # hand tuning: "shift" moves every cut, a shot's "nudge" moves its own cut (seconds, + later); cuts keep 2 frames apart
+    shift = float(edit.get('shift', 0))
+    if shift or any(s.get('nudge') for s in plan):
+        cuts = [0] + [round((s['f0'] / fps + shift + float(s.get('nudge', 0))) * fps) for s in plan[1:]]
+        for n in range(1, len(cuts)):
+            cuts[n] = max(cuts[n], cuts[n - 1] + 2)
+        for n in range(len(cuts) - 1, 0, -1):
+            cuts[n] = min(cuts[n], (cuts[n + 1] if n + 1 < len(cuts) else total) - 2)
+        for n, s in enumerate(plan):
+            s['f0'] = cuts[n]; s['frames'] = (cuts[n + 1] if n + 1 < len(cuts) else total) - cuts[n]
     dur = total / fps
     print(f'CUT {len(plan)} shots over {n_beats} beats ({n_beats / 4:g} bars), {dur:.2f} s from {t0:.2f} s in the song, '
           f'{60 / period:.1f} BPM here, {W}x{H} @ {fps}')
@@ -172,6 +183,7 @@ def main():
     ap.add_argument('--start', type=float); ap.add_argument('--bars', type=int); ap.add_argument('--seconds', type=float)
     ap.add_argument('--every', type=int); ap.add_argument('--pulse', type=float); ap.add_argument('--zoom', type=float)
     ap.add_argument('--size', help='WxH, e.g. 1080x1920'); ap.add_argument('--fit', choices=['cover', 'white', 'black']); ap.add_argument('--fps', type=int)
+    ap.add_argument('--shift', type=float, help='move every cut by this many seconds (+ later, - earlier)')
     a = ap.parse_args()
     if a.edit:
         edit = json.loads(pathlib.Path(a.edit).read_text()); edit['_dir'] = str(pathlib.Path(a.edit).parent)
@@ -180,7 +192,7 @@ def main():
         if not (a.song and a.beats and a.media and a.out):
             ap.error('give an edit.json and an output, or --song --beats --media --out')
         edit = {'song': a.song, 'beats': a.beats, 'shots': expand(a.media)}; out = a.out
-    for k in ('start', 'bars', 'seconds', 'every', 'pulse', 'zoom', 'fps', 'fit'):
+    for k in ('start', 'bars', 'seconds', 'every', 'pulse', 'zoom', 'fps', 'fit', 'shift'):
         if getattr(a, k) is not None:
             edit[k] = getattr(a, k)
     if a.size:
