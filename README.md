@@ -8,7 +8,7 @@ There are two ways to use it, and both run entirely on your own computer:
 
 - **In Claude Code**, as a plugin with two skills. Ask in plain words, for example *"make a 15-second reel from the
   photos in ~/Desktop/rome to this song: https://youtu.be/…, with the hook 'POV: you found the spot'"*.
-- **In the browser**, at the website in `web/`. Drop a song and photos or clips, pick the pace, type your captions, then
+- **In the browser**, at https://beatcut.tedkane.workers.dev (the website in `web/`). Drop a song and photos or clips, pick the pace, type your captions, then
   preview and export an MP4. Nothing is uploaded.
 
 ## Install the Claude Code plugin
@@ -83,16 +83,17 @@ beat detection won't run, because browsers block web workers and model files on 
 
 ### Put it on your Cloudflare
 
-The site is plain files, so Cloudflare Pages hosts it free.
+The site is plain files, so Cloudflare serves it free as **Workers static assets** (what Cloudflare Pages became).
+`wrangler.toml` points at `web/`.
 
 ```bash
-npx wrangler login                      # opens the browser once, to sign in to Cloudflare
-npx wrangler pages deploy               # uses wrangler.toml: uploads web/ as the project "beatcut"
+npx wrangler login       # once: opens the browser to sign in to Cloudflare
+npx wrangler deploy      # uploads web/ and prints the address
 ```
 
-The first deploy creates the project and prints its address (`https://beatcut.pages.dev` or similar). Run the same
-command again to update it. To use your own domain, go to the Cloudflare dashboard → Workers & Pages → beatcut → Custom
-domains. The model file is 10.5 MB, under Pages' 25 MB limit per file.
+Live at **https://beatcut.tedkane.workers.dev**. Run `npx wrangler deploy` again to update it. To use your own
+domain, go to the Cloudflare dashboard → Workers & Pages → beatcut → Settings → Domains & Routes. The model file is
+10.5 MB, under the 25 MB limit per file.
 
 ## How the beat detection is checked
 
@@ -128,9 +129,9 @@ python tools/export_onnx.py small0            # writes web/models/; then copy bo
 .claude-plugin/        plugin.json + marketplace.json (what /plugin install reads)
 skills/beatcut/        SKILL.md, scripts (setup, grab, beats, cut), models
 skills/captions/       SKILL.md, scripts (captions)
-web/                   the website (Cloudflare Pages serves this folder)
+web/                   the website (Cloudflare serves this folder)
 tools/export_onnx.py   PyTorch -> ONNX export, checked against PyTorch
-wrangler.toml          Cloudflare Pages config
+wrangler.toml          Cloudflare config (static assets from web/)
 ```
 
 ## Music rights
