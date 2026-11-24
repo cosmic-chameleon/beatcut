@@ -1,0 +1,12 @@
+{
+  "name": "beatcut",
+  "owner": { "name": "beatcut contributors" },
+  "metadata": { "description": "Beat-synced video tools for Claude Code: cut to the beat, add text, all on your own computer." },
+  "plugins": [
+    {
+      "name": "beatcut",
+      "source": "./",
+      "description": "Beat-synced video editing for Claude: yt-dlp download, Beat This! beat detection, cut on the beat, on-beat captions."
+    }
+  ]
+}

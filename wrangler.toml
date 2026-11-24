@@ -1,0 +1,5 @@
+# Cloudflare Pages: the website is the static folder web/ (no build step).
+# Deploy with:  npx wrangler pages deploy
+name = "beatcut"
+pages_build_output_dir = "web"
+compatibility_date = "2026-11-01"

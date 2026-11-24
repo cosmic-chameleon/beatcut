@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>beatcut</title>
+  <meta name="description" content="Make beat-synced videos in your browser: drop a song and photos or clips, cut them on the beat, add text, export MP4. Nothing leaves your computer." />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400..800;1,400..800&family=Montserrat:wght@500..900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body>
+  <header class="top">
+    <h1 class="brand">beatcut</h1>
+    <p class="tag">cut photos and clips on the beat. runs in your browser, nothing is uploaded.</p>
+    <button id="demo" class="link">try a demo</button>
+  </header>
+
+  <main class="layout">
+    <section class="steps">
+      <div class="card" id="songCard">
+        <h2>1 song</h2>
+        <label class="drop" id="songDrop">
+          <input type="file" id="songFile" accept="audio/*,video/*" hidden />
+          <span id="songLabel">drop a song or a video, or <u>choose a file</u></span>
+        </label>
+        <div class="status" id="beatStatus" hidden><div class="bar"><i id="beatBar"></i></div><span id="beatMsg"></span></div>
+        <div id="waveWrap" hidden>
+          <canvas id="wave" height="132"></canvas>
+          <p class="readout"><span id="bpm"></span> <span id="partInfo" class="muted"></span><span id="bgInfo" class="muted"></span></p>
+          <p class="small muted hint">click the waveform to start there (it snaps to the bar). beats come from the best part first, then the whole song.
+            <button id="bestPart" class="link">best part</button> · <button id="wholeSong" class="link">whole song</button> · <button id="beatsJson" class="link">beats.json</button></p>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>2 photos and clips</h2>
+        <label class="drop" id="mediaDrop">
+          <input type="file" id="mediaFile" accept="image/*,video/*" multiple hidden />
+          <span>drop photos and clips, or <u>choose files</u>. drag to reorder.</span>
+        </label>
+        <form class="from" id="fromForm">
+          <label for="fromUrl">or from a link</label>
+          <input id="fromUrl" type="text" placeholder="are.na channel, or image links" autocomplete="off" spellcheck="false" />
+          <button type="submit">add</button>
+        </form>
+        <p class="small muted" id="mediaMsg"></p>
+        <ol class="thumbs" id="thumbs"></ol>
+        <p class="small" id="mediaTools" hidden><button id="shuffle" class="link">shuffle</button> · <button id="clearMedia" class="link">clear</button></p>
+      </div>
+
+      <div class="card">
+        <h2>3 cut</h2>
+        <div class="grid2">
+          <label>cut every
+            <select id="every">
+              <option value="1">beat</option>
+              <option value="2" selected>2 beats</option>
+              <option value="4">bar</option>
+              <option value="8">2 bars</option>
+            </select>
+          </label>
+          <label>length
+            <select id="bars">
+              <option value="4">4 bars</option>
+              <option value="8" selected>8 bars</option>
+              <option value="12">12 bars</option>
+              <option value="16">16 bars</option>
+              <option value="32">32 bars</option>
+            </select>
+          </label>
+          <label>format
+            <select id="format">
+              <option value="1080x1920" selected>9:16 reels, tiktok, shorts</option>
+              <option value="1080x1350">4:5 feed</option>
+              <option value="1080x1080">1:1 square</option>
+              <option value="1920x1080">16:9 youtube</option>
+            </select>
+          </label>
+          <label>frame
+            <select id="fit">
+              <option value="cover" selected>fill, crop to fit</option>
+              <option value="white">whole image on white</option>
+              <option value="black">whole image on black</option>
+            </select>
+          </label>
+          <label>zoom on the beat
+            <select id="pulse">
+              <option value="0">off</option>
+              <option value="0.025" selected>small</option>
+              <option value="0.05">big</option>
+            </select>
+          </label>
+        </div>
+        <p class="small muted" id="editInfo"></p>
+      </div>
+
+      <div class="card">
+        <h2>4 text</h2>
+        <textarea id="text" rows="4" placeholder="one caption per line&#10;pov: you found the spot&#10;and it's only tuesday"></textarea>
+        <div class="grid2">
+          <label>style
+            <select id="style">
+              <option value="pop" selected>pop, a word a beat</option>
+              <option value="type">typewriter</option>
+              <option value="clean">clean</option>
+            </select>
+          </label>
+          <label>each line lasts
+            <select id="capBars">
+              <option value="1">1 bar</option>
+              <option value="2" selected>2 bars</option>
+              <option value="4">4 bars</option>
+            </select>
+          </label>
+          <label>position
+            <select id="ypos">
+              <option value="0.3">top</option>
+              <option value="0.5">middle</option>
+              <option value="0.62" selected>lower</option>
+            </select>
+          </label>
+          <label>accent <input type="color" id="accent" value="#c8ff3d" /></label>
+        </div>
+      </div>
+    </section>
+
+    <aside class="previewCol">
+      <div class="card preview">
+        <div class="stage" id="stage"><canvas id="view"></canvas><div class="empty" id="empty">add a song and some photos or clips</div></div>
+        <input type="range" id="scrub" min="0" max="1000" value="0" step="1" aria-label="scrub" />
+        <div class="row">
+          <button id="play" disabled>play</button>
+          <span class="small muted mono" id="clock">0.0 s</span>
+          <button id="export" disabled>export mp4</button>
+        </div>
+        <div class="status" id="exportStatus" hidden><div class="bar"><i id="exportBar"></i></div><span id="exportMsg"></span></div>
+        <div id="result" hidden>
+          <video id="resultVideo" controls playsinline></video>
+          <a id="download" class="link" download>download mp4</a>
+        </div>
+      </div>
+      <p class="small muted foot">beats by <a href="https://github.com/CPJKU/beat_this" target="_blank" rel="noopener">beat this!</a> (cpjku), running on your computer. best in chrome or edge. use music you have the rights to.</p>
+    </aside>
+  </main>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

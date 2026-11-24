@@ -1,0 +1,78 @@
+/* raw html, kept tidy: one serif, black on white, the browser's own controls, link blue. lowercase copy lives in the html.
+   the care goes into the parts that do the work: the waveform and the preview. */
+:root { --ink: #111; --muted: #777; --rule: #e2e2e2; --link: #0000ee; --bg: #fff; --error: #c00; color-scheme: light; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.5 "Times New Roman", Times, serif; }
+a, .link { color: var(--link); }
+.mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; }
+
+.top { max-width: 1160px; margin: 0 auto; padding: 22px 24px 14px; display: flex; align-items: baseline; gap: 18px; flex-wrap: wrap; border-bottom: 1px solid var(--ink); }
+.brand { font-size: 22px; margin: 0; }
+.tag { margin: 0; flex: 1; min-width: 220px; color: var(--muted); }
+
+.layout { max-width: 1160px; margin: 0 auto; padding: 0 24px 48px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 360px); gap: 44px; }
+.steps { min-width: 0; }
+.card { padding: 22px 0 24px; border-bottom: 1px solid var(--rule); }
+.card:last-child { border-bottom: 0; }
+h2 { font-size: 19px; margin: 0 0 10px; }
+
+.drop { display: block; padding: 12px 14px; border: 1px dashed #aaa; cursor: pointer; }
+.drop:hover, .drop.over { border-color: var(--link); }
+.drop u { color: var(--link); }
+
+.from { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; margin-top: 10px; }
+.from input { flex: 1; min-width: 200px; padding: 4px 6px; font: 14px ui-monospace, Menlo, Consolas, monospace; }
+#mediaMsg { margin: 6px 0 0; min-height: 0; }
+#mediaMsg:empty { display: none; }
+#mediaTools { margin: 8px 0 0; }
+.grid2 { display: flex; flex-wrap: wrap; gap: 10px 22px; margin-top: 10px; }
+label { display: inline-flex; align-items: baseline; gap: 7px; }
+select, input, button { font-size: 14px; }
+textarea { display: block; width: 100%; max-width: 520px; padding: 6px 8px; font: 15px/1.45 ui-monospace, Menlo, Consolas, monospace; }
+input[type=color] { width: 54px; height: 26px; padding: 0 2px; vertical-align: middle; }
+.link { background: none; border: 0; padding: 0; font: inherit; text-decoration: underline; cursor: pointer; }
+.link:disabled { color: var(--muted); }
+
+.row { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-top: 10px; }
+.small { font-size: 15px; }
+.muted { color: var(--muted); }
+
+/* the waveform: the one drawn thing on the page */
+#wave { display: block; width: 100%; margin-top: 14px; cursor: crosshair; touch-action: none; }
+.readout { margin: 8px 0 0; }
+#bpm { font-weight: bold; }
+.hint { margin: 2px 0 0; }
+
+.thumbs { list-style: none; padding: 0; margin: 12px 0 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px; }
+.thumbs li { position: relative; aspect-ratio: 1; overflow: hidden; background: #000; cursor: grab; }
+.thumbs li.dragging { opacity: 0.35; }
+.thumbs img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.thumbs .i, .thumbs .v { position: absolute; left: 0; background: #fff; font: 12px/1 ui-monospace, Menlo, monospace; padding: 3px 4px; }
+.thumbs .i { top: 0; }
+.thumbs .v { bottom: 0; }
+.thumbs .x { position: absolute; right: 0; top: 0; width: 20px; height: 20px; padding: 0; border: 0; background: #fff; font-size: 14px; line-height: 20px; cursor: pointer; }
+
+/* the preview: a clean black frame */
+.previewCol { position: sticky; top: 0; align-self: start; min-width: 0; padding-top: 22px; }
+.preview { padding: 0; border: 0; }
+.stage { position: relative; background: #000; display: grid; place-items: center; max-height: 72vh; }
+#view { display: block; max-width: 100%; max-height: 72vh; }
+.empty { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px; color: #8a8a8a; font-style: italic; }
+#scrub { display: block; width: 100%; margin: 10px 0 0; }
+.preview .row { justify-content: space-between; }
+
+.status { margin-top: 10px; font-size: 15px; }
+.bar { height: 3px; background: var(--rule); margin-bottom: 5px; }
+.bar i { display: block; height: 100%; width: 0; background: var(--ink); transition: width 0.15s; }
+.error { color: var(--error); }
+#result { margin-top: 12px; display: grid; gap: 8px; }
+#result video { width: 100%; background: #000; max-height: 50vh; }
+.foot { margin: 14px 0 0; font-size: 14px; }
+
+@media (max-width: 860px) {
+  .top, .layout { padding-left: 16px; padding-right: 16px; }
+  .layout { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .previewCol { position: static; }
+  .grid2 { flex-direction: column; gap: 8px; }
+}
